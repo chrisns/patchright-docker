@@ -7,7 +7,7 @@ ENV PYTHONUNBUFFERED=1 \
     DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      xvfb ca-certificates tini \
+      xvfb xauth ca-certificates tini \
       fonts-liberation fonts-noto-core fonts-noto-color-emoji \
       wget gnupg \
     && rm -rf /var/lib/apt/lists/*

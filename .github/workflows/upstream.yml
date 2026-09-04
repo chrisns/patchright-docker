@@ -1,0 +1,49 @@
+name: track upstream
+
+# Watches PyPI for new patchright releases. PyPI is the source of truth rather
+# than the upstream GitHub releases page, which lags it (1.62.3 on PyPI while
+# GitHub still showed v1.62.0). A new version cuts a matching tag and release
+# here, which in turn fires build.yml.
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Compare upstream against our tags
+        id: check
+        run: |
+          upstream=$(curl -fsSL https://pypi.org/pypi/patchright/json | jq -r .info.version)
+          echo "Upstream patchright: ${upstream}"
+          if git rev-parse "${upstream}" >/dev/null 2>&1; then
+            echo "Already tagged ${upstream}, nothing to do."
+            echo "needed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+            echo "version=${upstream}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Tag and release
+        if: steps.check.outputs.needed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.check.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag "${VERSION}"
+          git push origin "${VERSION}"
+          gh release create "${VERSION}" \
+            --title "${VERSION}" \
+            --notes "Tracks [patchright ${VERSION}](https://pypi.org/project/patchright/${VERSION}/). Image: \`ghcr.io/${GITHUB_REPOSITORY}:${VERSION}\`"
